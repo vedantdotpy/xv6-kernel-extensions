@@ -6,9 +6,17 @@
 [![Concurrency](https://img.shields.io/badge/concurrency-4--CPU%20test%20harness-f59e0b)](https://github.com/vedantdotpy/xv6-kernel-extensions)
 [![Language](https://img.shields.io/badge/language-C%20%2B%20RISC--V%20Assembly-64748b)](https://github.com/vedantdotpy/xv6-kernel-extensions)
 
-An xv6/RISC-V kernel engineering project focused on virtual-memory introspection, a kernel-to-user shared syscall page, and writer-priority reader-writer synchronization. The repository contains two independently runnable lab tracks: `xv6-labs(Paging)` and `xv6-labs(Locks)`.
+An xv6/RISC-V kernel engineering project focused on virtual-memory introspection, a kernel-to-user shared syscall page, and writer-priority reader-writer synchronization.
 
 > **Resume-ready summary:** Extended a RISC-V xv6 kernel across **2 lab tracks**, implementing **Sv39 page-table tooling**, a **4 KiB per-process shared syscall page**, and a **writer-priority reader-writer lock** validated on **4 virtual CPUs** with multi-process stress tests.
+
+<p align="center">
+  <a href="#engineering-at-a-glance">Metrics</a> •
+  <a href="#choose-a-track">Choose a track</a> •
+  <a href="#architecture">Architecture</a> •
+  <a href="#validation">Validation</a> •
+  <a href="#how-to-build--run">Run it</a>
+</p>
 
 ## Engineering at a Glance
 
@@ -22,6 +30,39 @@ An xv6/RISC-V kernel engineering project focused on virtual-memory introspection
 | **128 MiB emulated memory** | QEMU runs with a 128 MiB memory configuration |
 | **1M-iteration lock stress loops** | Reader and writer critical-section tests each exercise million-iteration loops |
 | **177 commits** | Version-controlled implementation history in this repository |
+
+## Choose a Track
+
+| Start here | Focus | Main proof point | Key command |
+| --- | --- | --- | --- |
+| [`xv6-labs(Paging)`](./xv6-labs(Paging)) | Page tables and kernel/user memory boundary | A read-only user mapping exposes each process ID without a system call | `pgtbltest` |
+| [`xv6-labs(Locks)`](./xv6-labs(Locks)) | Synchronization under contention | A writer-priority reader-writer lock is exercised by 4 processes on 4 CPUs | `rwlktest` |
+
+## Architecture
+
+```mermaid
+flowchart TB
+    U[User-space test programs]
+    U --> PT[pgtbltest]
+    U --> RT[rwlktest]
+
+    subgraph P[Paging track]
+      PT --> VM[vmprint + Sv39 page-table traversal]
+      PT --> US[USYSCALL: per-process 4 KiB page]
+      US --> PID[Read-only user PID access]
+    end
+
+    subgraph L[Locks track]
+      RT --> RW[Reader-writer spinlock]
+      RW --> R[Concurrent readers]
+      RW --> W[Queued writers block new readers]
+    end
+
+    P --> Q[QEMU RISC-V virt machine]
+    L --> Q
+```
+
+The two tracks are intentionally independent so each extension can be built, inspected, and tested in isolation.
 
 ## What I Built
 
@@ -39,6 +80,17 @@ An xv6/RISC-V kernel engineering project focused on virtual-memory introspection
 - Added a 4-process/4-CPU test harness covering simultaneous readers, exclusive writers, writer priority, and multiple waiting writers.
 - Included lock-statistics plumbing plus allocator and buffer-cache stress-test programs for lock-focused validation.
 
+<details>
+<summary><strong>Implementation notes</strong></summary>
+
+<br>
+
+- The paging track allocates one `USYSCALL` page per process, maps it with `PTE_R | PTE_U`, initializes it with that process’s PID, and releases it during process cleanup.
+- The lock tracks active readers, an active writer, and waiting writers. A reader acquires the lock only when no writer is active or queued; this gives waiting writers priority.
+- The lock test checks reader concurrency, writer exclusivity, one waiting writer, and two waiting writers.
+
+</details>
+
 ## Validation
 
 | Test | What it exercises |
@@ -48,6 +100,17 @@ An xv6/RISC-V kernel engineering project focused on virtual-memory introspection
 | `kalloctest` | Concurrent allocator allocation/free and stealing paths |
 | `bcachetest` | Concurrent buffer-cache behavior and eviction paths |
 | `usertests` | Broad xv6 regression coverage |
+
+<details>
+<summary><strong>What success looks like</strong></summary>
+
+<br>
+
+- `pgtbltest` ends with `pgtbltest: all tests succeeded` after printing user and kernel page-table data.
+- `rwlktest` reports `4/4 CPUs succeeded`; individual worker processes return success only when all synchronization checks pass.
+- `usertests` is the regression check after either extension is built.
+
+</details>
 
 ## How to Build & Run
 
@@ -64,11 +127,11 @@ make clean
 make qemu
 ```
 
-Inside the xv6 shell, run:
+Then, at the xv6 shell (`$`), run:
 
 ```bash
-pgtbltest
-usertests
+$ pgtbltest
+$ usertests
 ```
 
 ### Locking track
@@ -79,13 +142,13 @@ make clean
 make qemu
 ```
 
-Inside the xv6 shell, run:
+Then, at the xv6 shell (`$`), run:
 
 ```bash
-rwlktest
-kalloctest
-bcachetest
-usertests
+$ rwlktest
+$ kalloctest
+$ bcachetest
+$ usertests
 ```
 
 ## Technical Details
