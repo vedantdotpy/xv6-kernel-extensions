@@ -1,73 +1,103 @@
 
-# xv6 Kernel Optimization: Shared Memory & Concurrency
+# xv6 Kernel Extensions: Virtual Memory & Concurrency
 
-This repository contains my modified version of the **xv6 operating system kernel** (RISC-V architecture).
+[![Architecture](https://img.shields.io/badge/architecture-RISC--V%2064--bit-2ea44f)](https://github.com/vedantdotpy/xv6-kernel-extensions)
+[![Paging](https://img.shields.io/badge/virtual%20memory-Sv39%20%7C%203--level-2563eb)](https://github.com/vedantdotpy/xv6-kernel-extensions)
+[![Concurrency](https://img.shields.io/badge/concurrency-4--CPU%20test%20harness-f59e0b)](https://github.com/vedantdotpy/xv6-kernel-extensions)
+[![Language](https://img.shields.io/badge/language-C%20%2B%20RISC--V%20Assembly-64748b)](https://github.com/vedantdotpy/xv6-kernel-extensions)
 
-The project focuses on two major areas of OS engineering: **Memory Management Optimization** and **Concurrency Control**. 
------
+An xv6/RISC-V kernel engineering project focused on virtual-memory introspection, a kernel-to-user shared syscall page, and writer-priority reader-writer synchronization. The repository contains two independently runnable lab tracks: `xv6-labs(Paging)` and `xv6-labs(Locks)`.
+
+> **Resume-ready summary:** Extended a RISC-V xv6 kernel across **2 lab tracks**, implementing **Sv39 page-table tooling**, a **4 KiB per-process shared syscall page**, and a **writer-priority reader-writer lock** validated on **4 virtual CPUs** with multi-process stress tests.
+
+## Engineering at a Glance
+
+| Metric | Evidence in this repository |
+| --- | --- |
+| **2 runnable kernel tracks** | Separate paging and locking implementations, each with its own build configuration |
+| **4 virtual CPUs** | Lock harness pins the QEMU lock configuration to 4 CPUs and spawns 4 test processes |
+| **64 forked address-space checks** | `pgtbltest` verifies the user-visible PID mapping across 64 child processes |
+| **3-level Sv39 page tables** | Virtual-memory implementation targets RISC-V Sv39 translation |
+| **4 KiB page granularity** | `PGSIZE` is 4,096 bytes; each process receives a dedicated `USYSCALL` page |
+| **128 MiB emulated memory** | QEMU runs with a 128 MiB memory configuration |
+| **1M-iteration lock stress loops** | Reader and writer critical-section tests each exercise million-iteration loops |
+| **177 commits** | Version-controlled implementation history in this repository |
+
+## What I Built
+
+### Virtual-memory extensions
+
+- Added a per-process, user-readable/kernel-writable `USYSCALL` mapping that exposes the process ID without a system call.
+- Implemented `ugetpid()` and a 64-process fork test that cross-checks the shared-page PID against `getpid()`.
+- Added recursive `vmprint` page-table traversal and a user-facing page-table inspection test.
+- Preserved xv6 user/kernel address-space protections while integrating the additional mapping.
+
+### Concurrency extensions
+
+- Implemented a reader-writer spinlock with concurrent readers and writer priority.
+- Prevented new readers from bypassing a queued writer, addressing writer starvation at the lock-policy level.
+- Added a 4-process/4-CPU test harness covering simultaneous readers, exclusive writers, writer priority, and multiple waiting writers.
+- Included lock-statistics plumbing plus allocator and buffer-cache stress-test programs for lock-focused validation.
+
+## Validation
+
+| Test | What it exercises |
+| --- | --- |
+| `pgtbltest` | Page-table printing, shared `USYSCALL` PID mapping, and 64 forked child checks |
+| `rwlktest` | 4-process reader-writer correctness and writer-priority behavior on 4 CPUs |
+| `kalloctest` | Concurrent allocator allocation/free and stealing paths |
+| `bcachetest` | Concurrent buffer-cache behavior and eviction paths |
+| `usertests` | Broad xv6 regression coverage |
 
 ## How to Build & Run
 
-### Prerequisites
-
 You need a RISC-V toolchain and QEMU.
 
-  * **MacOS:** `brew install riscv-gnu-toolchain qemu`
-  * **Linux:** `sudo apt-get install git build-essential gdb-multiarch qemu-system-misc gcc-riscv64-linux-gnu binutils-riscv64-linux-gnu`
+- **macOS:** `brew install riscv-gnu-toolchain qemu`
+- **Linux:** `sudo apt-get install git build-essential gdb-multiarch qemu-system-misc gcc-riscv64-linux-gnu binutils-riscv64-linux-gnu`
 
-### Compiling
-
-To compile the kernel and build the file system image:
+### Paging track
 
 ```bash
+cd "xv6-labs(Paging)"
 make clean
 make qemu
 ```
 
-### Running Tests
-
-This project includes specific test suites to verify the optimizations.
-
-**1. Test Page Tables & Shared Memory:**
-Inside the xv6 shell (`$`), run:
+Inside the xv6 shell, run:
 
 ```bash
-$ pgtbltest
+pgtbltest
+usertests
 ```
 
-  * Verifies that the `USYSCALL` page is mapped with correct permissions (User-Read, Kernel-Write).
-  * Prints the page table structure using the custom `vmprint` tool.
-
-**2. Test Reader-Writer Locks:**
-Inside the xv6 shell (`$`), run:
+### Locking track
 
 ```bash
-$ rwlktest
+cd "xv6-labs(Locks)"
+make clean
+make qemu
 ```
 
-  * Spawns multiple processes on 4 CPUs.
-  * Verifies that multiple readers can access the critical section simultaneously.
-  * Verifies that a waiting writer successfully blocks new readers (Priority Check).
-
-**3. Run All System Tests:**
+Inside the xv6 shell, run:
 
 ```bash
-$ usertests
+rwlktest
+kalloctest
+bcachetest
+usertests
 ```
-
-  * Runs the standard xv6 test suite to ensure no regressions were introduced.
-
------
 
 ## Technical Details
 
-  * **Architecture:** RISC-V (64-bit)
-  * **Memory Model:** Sv39 Paging
-  * **Emulator:** QEMU
-  * **Language:** C, RISC-V Assembly
+- **Architecture:** 64-bit RISC-V
+- **Memory model:** Sv39 paging (3 levels), 4 KiB pages
+- **Runtime:** QEMU `virt` machine, 128 MiB RAM; locking track uses 4 CPUs
+- **Implementation:** C and RISC-V assembly
+- **Base system:** MIT PDOS xv6-riscv / 6.S081 teaching kernel
 
 ## Acknowledgments
 
-This project is based on the xv6-riscv operating system developed by MIT PDOS for the 6.S081 Operating Systems Engineering course.
+This project builds on the xv6-riscv operating system developed by MIT PDOS for the 6.S081 Operating Systems Engineering course.
 
 
