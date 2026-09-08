@@ -8,8 +8,6 @@
 
 An xv6/RISC-V kernel engineering project focused on virtual-memory introspection, a kernel-to-user shared syscall page, and writer-priority reader-writer synchronization.
 
-> **Resume-ready summary:** Extended a RISC-V xv6 kernel across **2 lab tracks**, implementing **Sv39 page-table tooling**, a **4 KiB per-process shared syscall page**, and a **writer-priority reader-writer lock** validated on **4 virtual CPUs** with multi-process stress tests.
-
 <p align="center">
   <a href="#engineering-at-a-glance">Metrics</a> •
   <a href="#choose-a-track">Choose a track</a> •
